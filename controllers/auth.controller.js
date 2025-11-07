@@ -4,9 +4,12 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 
-exports.login = async (req, res) => {
+exports.adminLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
+
+        console.log(req.body);
+        
         let admin = await Admin.findOne({ email: email }).select('password');
         if (!admin) {
             return res.status(400).json({ message: 'Invalid Credentials', success: false });
@@ -21,8 +24,8 @@ exports.login = async (req, res) => {
             { expiresIn: '1d' }            // expiry
         );
 
-        console.log(req.body);
-        res.status(201).json({ message: 'Admin logged In', success: true, token });
+        // console.log(req.body);
+        res.status(201).json({ message: 'Admin logged In', ok: true, token });
     } catch (error) {
         console.error("Login error:", error);
         res

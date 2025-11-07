@@ -17,6 +17,7 @@ app.use(express.json());
 const authRouter = require('./routes/auth.routes');
 const userRouter = require('./routes/user.routes');
 const adminRouter = require('./routes/admin.routes');
+const empRouter = require('./routes/employee.routes');
 
 app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -26,6 +27,7 @@ app.get('/', (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/employee', empRouter);
 
 // 404
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));

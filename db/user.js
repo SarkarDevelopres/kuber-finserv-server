@@ -34,6 +34,20 @@ const UserSchema = new mongoose.Schema({
         unique: true,
         sparse: true
     },
+    address: {
+        type: Object
+    },
+    salarySlip: {
+        type: String
+    },
+    empReferCode: {
+        type: String,
+        default:"",
+    },
+    isReferred: {
+        type: Boolean,
+        default: false
+    },
     createdAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 
