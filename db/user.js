@@ -42,11 +42,14 @@ const UserSchema = new mongoose.Schema({
     },
     empReferCode: {
         type: String,
-        default:"",
+        default: "",
     },
     isReferred: {
         type: Boolean,
         default: false
+    },
+    notification: {
+        type: Boolean
     },
     createdAt: { type: Date, default: Date.now }
 }, { timestamps: true });

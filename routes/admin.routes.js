@@ -15,5 +15,10 @@ router.post('/addEmployee',AdminController.addEmployee);
 router.post('/editEmployee',AdminController.editEmployee);
 router.post('/deleteEmployee',AdminController.deleteEmployee);
 router.post('/deleteUser',AdminController.deleteUser);
+router.get('/fetchMessages',AdminController.fetchMessages);
+router.post('/markAsRead',AdminController.markAsRead);
+router.post('/replyMessage',AdminController.replyMessage);
+router.post('/approveLoan',AdminController.approveLoan);
+router.post('/rejectLoan',AdminController.rejectLoan);
 
 module.exports = router;

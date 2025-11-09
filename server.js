@@ -3,6 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { createServer } = require("http");
+const { initSocket } = require("./socket.js");
 const mongoose = require('mongoose');
 
 const connectDB = require('./middleware/connectDB'); // must return a Promise!
@@ -12,6 +14,9 @@ mongoose.set('bufferCommands', false); // fail fast instead of buffering
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const server = createServer(app);
+initSocket(server);
 
 // Routes
 const authRouter = require('./routes/auth.routes');
@@ -42,7 +47,7 @@ async function main() {
   console.log('[db] connected');
 
   const PORT = process.env.PORT || 5000;
-  app.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
   });
 }

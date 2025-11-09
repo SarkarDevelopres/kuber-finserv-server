@@ -15,8 +15,11 @@ const AdminSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum:['admin', 'sub-admin'],
-        required:true
+        enum: ['admin', 'sub-admin'],
+        required: true
+    },
+    notification: {
+        type: Boolean
     },
     blocked: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
@@ -24,8 +27,8 @@ const AdminSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 AdminSchema.index(
-  { role: 1 }, 
-  { unique: true, partialFilterExpression: { role: 'admin' } }
+    { role: 1 },
+    { unique: true, partialFilterExpression: { role: 'admin' } }
 );
 
 AdminSchema.methods.comparePassword = async function (enteredPassword) {

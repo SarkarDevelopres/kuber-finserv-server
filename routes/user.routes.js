@@ -12,6 +12,8 @@ router.post('/applyLoan',UserController.applyLoan)
 router.post('/fetchLoans',UserController.fetchLoans)
 router.get('/getNumber',UserController.getNumber)
 router.post('/sendMessage',UserController.sendMessage)
+router.post('/fetchMessages',UserController.fetchMessages)
+router.post('/getNotification',UserController.getNotification)
 
 router.get('/getUserList',UserController.getUserList)
 router.post('/appliedLoanLength',UserController.appliedLoanLength)

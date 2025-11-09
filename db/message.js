@@ -7,8 +7,12 @@ const MessageSchema = new mongoose.Schema(
         reason: { type: String },
         subject: { type: String, required: true },
         message: { type: String },
+        type: { type: String, enum: ["message", "notification"], default: "message" },
         isRead: { type: Boolean, default: false },
-        isAnswered: { type: Boolean, default: false }
+        isAnswered: { type: Boolean, default: false },
+        replyText: { type: String },
+        replyBy: { type: String },
+        replyTime: { type: Date }
     },
     { timestamps: true }
 );

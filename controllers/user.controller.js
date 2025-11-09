@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 const Employee = require("../db/employee.js");
 const Admin = require("../db/admin.js");
 const Message = require("../db/message.js");
-
+const { getIO } = require("../socket");
 
 function generateLoanId() {
   const prefix = "LN"; // you can use "KFN" for Kuber Finserv Loans
@@ -362,18 +362,85 @@ exports.sendMessage = async (req, res) => {
       return res.status(400).json({ ok: false, message: "User don't exists!" });
     }
 
-    await Message.create({
+    let newMessage = await Message.create({
       userId: user._id,
       reason: reason,
       subject: subject,
       message: message
-    })
+    });
+
+    // Here i wish to update Admin and specific Employee db
+    const updates = [];
+
+    // Update all admins
+    updates.push(Admin.updateMany({}, { notification: true }));
+
+    // Update assigned employee (if exists)
+    if (user.empReferCode) {
+      updates.push(Employee.updateOne({ id: user.empReferCode }, { notification: true }));
+    }
+
+    await Promise.all(updates);
+
+    const io = getIO();
+
+    io.to("admin-room").emit("new_user_message", {
+      newMessage: newMessage.toObject()
+    });
+
+    // Also emit to employee room
+    if (user.empReferCode) {
+      io.to(`employee:${user.empReferCode}`).emit("new_user_message", {
+        newMessage: newMessage.toObject()
+      });
+    }
 
     return res.status(200).json({ ok: true, message: "Query sent successfully!" });
 
   } catch (error) {
     console.log(error);
     return res.status(500).json({ ok: false, message: "Internal server error!" });
-
   }
 }
+
+exports.getNotification = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ ok: false, message: "Invalid User!" });
+    }
+    let userData = await User.findOne({ email: email }).select('notification').lean();
+    if (!userData) {
+      return res.status(400).json({ ok: false, message: "Invalid User!" });
+    }
+    let loanCount = await Loan.countDocuments({ userId: userData._id });
+    return res.status(200).json({ ok: true, notification: userData.notification, id: userData._id, loanCount: loanCount });
+
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "Internal server error!" });
+  }
+}
+exports.fetchMessages = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ ok: false, message: "Incorrect Email!" });
+    }
+
+    const userData = await User.findOne({ email }).lean();
+    if (!userData) {
+      return res.status(400).json({ ok: false, message: "Invalid User!" });
+    }
+
+    // Fetch messages and clear notification in parallel
+    const [messages] = await Promise.all([
+      Message.find({ userId: userData._id }).sort({ createdAt: -1 }).lean(),
+      User.findByIdAndUpdate(userData._id, { notification: false }),
+    ]);
+
+    return res.status(200).json({ ok: true, messages });
+  } catch (error) {
+    console.error("fetchMessages error:", error);
+    return res.status(500).json({ ok: false, message: "Internal server error!" });
+  }
+};

@@ -4,6 +4,8 @@ const Loan = require("../db/loan");
 const Admin = require("../db/admin");
 const jwt = require('jsonwebtoken');
 const Employee = require('../db/employee');
+const Message = require('../db/message');
+const { getIO } = require("../socket");
 
 function checkAuthHeader(authHeader) {
     if (!authHeader) {
@@ -100,6 +102,8 @@ exports.fetchStartUpData = async (req, res) => {
             return res.status(401).json({ ok: false, message: "Unauthorized" });
         }
 
+        let adminNotification = await Admin.findById(adminId).select('notification -_id');
+
         let userCount = await User.countDocuments();
         const result = await ContactList.aggregate([
             {
@@ -178,7 +182,8 @@ exports.fetchStartUpData = async (req, res) => {
                 totalSanctionedLoans: sanctionedLoanCount,
                 userGraph: userPerMonth,
                 appliedLoanGraph: appliedLoanMonth,
-                latestAppliedLoans: listOfAppliedLoans
+                latestAppliedLoans: listOfAppliedLoans,
+                notification: adminNotification.notification ? adminNotification.notification : false
             }
         });
 
@@ -358,8 +363,8 @@ exports.addEmployee = async (req, res) => {
 exports.editEmployee = async (req, res) => {
     try {
         const { _id, id, name, email, phone, department, post, joinDate, status } = req.body;
-        console.log("join Date: ",joinDate);
-        
+        console.log("join Date: ", joinDate);
+
         if (_id == "" || id == "" || name == "" || email == "" || phone == "" || department == "" || post == "" || joinDate == "" || status == "") {
             return res.status(400).json({ ok: false, message: "Empty fields" });
         }
@@ -374,7 +379,7 @@ exports.editEmployee = async (req, res) => {
             status
         })
         console.log(employeeUpdate);
-        
+
 
         return res.status(200).json({ ok: true, message: "Employee Updated!", data: employeeUpdate });
 
@@ -391,7 +396,7 @@ exports.getUserList = async (req, res) => {
         if (!checkAuthValid.auth) {
             return res.status(400).json({ ok: false, message: "Unauthorised Access" });
         }
-        let userList = await User.find().select('username email phone isReferred empReferCode salarySlip pan aadhar');
+        let userList = await User.find().select('username email phone isReferred empReferCode salarySlip pan aadhar address');
 
         const updatedUserList = await Promise.all(
             userList.map(async (u) => {
@@ -577,5 +582,190 @@ exports.deleteEmployee = async (req, res) => {
     catch {
         console.error("delete employee error:", err);
         return res.status(500).json({ ok: false, message: err.message });
+    }
+}
+
+exports.fetchMessages = async (req, res) => {
+    try {
+        let authHeader = req.headers['authorization'];
+        let checkAuthValid = checkAuthHeader(authHeader);
+        if (!checkAuthValid.auth) {
+            return res.status(400).json({ ok: false, message: "Unauthorised Access" });
+        }
+        let messages = await Message.find({ type: "message" })
+            .sort({ creatdAt: -1 }) // or { createdAt: -1 } if you have timestamps
+            .lean();
+
+        let updatedMessageWithUserDetails = await Promise.all(messages.map(async (message) => {
+            const userData = await User.findById(message.userId).select('username email phone -_id');
+
+            return {
+                ...message,
+                username: userData.username,
+                email: userData.email,
+                phone: userData.phone,
+            }
+
+        }))
+
+        await Admin.findByIdAndUpdate(checkAuthValid.adminId, { notification: false });
+
+        return res.status(200).json({ ok: true, messages: updatedMessageWithUserDetails });
+    } catch (error) {
+        console.error("fetch messages error:", err);
+        return res.status(500).json({ ok: false, message: err.message });
+    }
+}
+
+
+exports.markAsRead = async (req, res) => {
+    try {
+        let authHeader = req.headers['authorization'];
+        let checkAuthValid = checkAuthHeader(authHeader);
+        if (!checkAuthValid.auth) {
+            return res.status(400).json({ ok: false, message: "Unauthorised Access" });
+        }
+
+        const { id } = req.body;
+        if (!id) {
+            return res.status(400).json({ ok: false, message: "Message identifier missing." });
+        }
+
+        let updatedMessage = await Message.findByIdAndUpdate(id, { isRead: true }, { new: true }).lean();
+
+        // mark notification
+        await User.findByIdAndUpdate(updatedMessage.userId, { notification: true });
+
+        const io = getIO();
+        io.to(`user:${updatedMessage.userId}`).emit("notification", { notification: true });
+
+
+        return res.status(200).json({ ok: true });
+    } catch (error) {
+        console.error("mark as read message admin error:", error);
+        return res.status(500).json({ ok: false, message: error.message });
+    }
+}
+
+exports.replyMessage = async (req, res) => {
+    try {
+        let authHeader = req.headers['authorization'];
+        let checkAuthValid = checkAuthHeader(authHeader);
+        if (!checkAuthValid.auth) {
+            return res.status(400).json({ ok: false, message: "Unauthorised Access" });
+        }
+
+        const { id, reply } = req.body;
+
+        if (!id || !reply) {
+            return res.status(400).json({ ok: false, message: "Invalid Reply!" });
+        }
+
+        let replyTime = new Date();
+
+        let repliedMessage = await Message.findByIdAndUpdate(id, {
+            isAnswered: true,
+            replyText: reply,
+            replyBy: "Admin",
+            replyTime: replyTime
+        },
+            {
+                new: true
+            }
+        ).lean();
+
+        await User.findByIdAndUpdate(repliedMessage.userId, { notification: true });
+
+        const io = getIO();
+        io.to(`user:${repliedMessage.userId}`).emit("notification", { notification: true });
+
+        return res.status(200).json({ ok: true, newMesageData: repliedMessage });
+
+
+    } catch (error) {
+        console.error("reply message admin error:", error);
+        return res.status(500).json({ ok: false, message: error.message });
+    }
+}
+
+exports.approveLoan = async (req, res) => {
+    try {
+        const { loanId } = req.body;
+        if (!loanId) {
+            return res.status(400).json({ ok: false, message: "Invalid Loan!" });
+        }
+        let loan = await Loan.findOne({ loanId: loanId });
+
+        if (!loan) {
+            return res.status(404).json({ ok: false, message: "Loan not found" });
+        }
+
+        let startDate = new Date();
+        let durationDays = loan.tenure * (loan.unit === "month" ? 30 : 365);
+        let durationMs = durationDays * 24 * 60 * 60 * 1000;
+        let dueDate = new Date(startDate.getTime() + durationMs);
+
+        await Loan.findOneAndUpdate(
+            { loanId },
+            {
+                $set: {
+                    status: "approved",
+                    dueDate: dueDate,
+                    paidTill: 0
+                }
+            }
+        );
+
+        await Message.create({
+            type: "notification",
+            userId: loan.userId,
+            subject: "Loan approved !",
+            message: `Your Loan of ID: ${loanId} have been aprroved !`,
+        });
+
+        const io = getIO();
+        io.to(`user:${loan.userId}`).emit("notification", { notification: true });
+
+        return res.status(200).json({ ok: true });
+
+
+    } catch (error) {
+        console.error("approve loan admin error:", error);
+        return res.status(500).json({ ok: false, message: error.message });
+    }
+}
+
+exports.rejectLoan = async (req, res) => {
+    try {
+        const { loanId } = req.body;
+        if (!loanId) {
+            return res.status(400).json({ ok: false, message: "Invalid Loan!" });
+        }
+
+        let loan = await Loan.findOneAndUpdate(
+            { loanId },
+            {
+                $set: {
+                    status: "rejected",
+                }
+            }
+        );
+
+        await Message.create({
+            type: "notification",
+            userId: loan.userId,
+            subject: "Loan Rejected !",
+            message: `Your Loan of ID: ${loanId} have been rejected !`,
+        });
+
+        const io = getIO();
+        io.to(`user:${loan.userId}`).emit("notification", { notification: true });
+
+        return res.status(200).json({ ok: true });
+
+
+    } catch (error) {
+        console.error("reject loan admin error:", error);
+        return res.status(500).json({ ok: false, message: error.message });
     }
 }

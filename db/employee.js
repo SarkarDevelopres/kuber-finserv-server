@@ -13,6 +13,10 @@ const EmployeeSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    password: {
+        type: Number,
+        required: true
+    },
     phone: {
         type: Number,
         required: true,
@@ -37,10 +41,13 @@ const EmployeeSchema = new mongoose.Schema({
         enum: ["active", "inactive", "terminated", "on_leave", "probation"],
     },
     joinDate: {
-        type:String
+        type: String
     },
     salarySlip: {
         type: String
+    },
+    notification: {
+        type: Boolean
     },
     createdAt: { type: Date, default: Date.now }
 }, { timestamps: true });
