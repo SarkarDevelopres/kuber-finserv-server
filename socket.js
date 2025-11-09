@@ -5,7 +5,7 @@ let io;
 export const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: ["http://localhost:3000", "exp://your-expo-url"],
+      origin: ["http://localhost:3000", "https://kuber-finserv-website-plzc.vercel.app/", "exp://your-expo-url"],
       methods: ["GET", "POST"],
     },
     transports: ["websocket", "polling"],
